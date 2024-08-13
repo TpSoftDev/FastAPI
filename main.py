@@ -1,163 +1,124 @@
+import json
+import os
 import random
+from typing import Optional, List
+from uuid import uuid4
+
 from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from fastapi.encoders import jsonable_encoder
+
 
 # Initialize the FastAPI app
 app = FastAPI()
 
-# Create a sample database of books as a list of dictionaries
-BOOK_DATABASE = [
-    {
-        "title": "To Kill a Mockingbird",
-        "author": "Harper Lee",
-        "genre": "Fiction",
-        "year": 1960,
-        "ISBN": "978-0061120084"
-    },
-    {
-        "title": "1984",
-        "author": "George Orwell",
-        "genre": "Dystopian",
-        "year": 1949,
-        "ISBN": "978-0451524935"
-    },
-    {
-        "title": "The Great Gatsby",
-        "author": "F. Scott Fitzgerald",
-        "genre": "Fiction",
-        "year": 1925,
-        "ISBN": "978-0743273565"
-    },
-    {
-        "title": "Pride and Prejudice",
-        "author": "Jane Austen",
-        "genre": "Romance",
-        "year": 1813,
-        "ISBN": "978-1503290563"
-    },
-    {
-        "title": "The Catcher in the Rye",
-        "author": "J.D. Salinger",
-        "genre": "Fiction",
-        "year": 1951,
-        "ISBN": "978-0316769488"
-    },
-    {
-        "title": "Moby Dick",
-        "author": "Herman Melville",
-        "genre": "Adventure",
-        "year": 1851,
-        "ISBN": "978-1503280786"
-    },
-    {
-        "title": "The Lord of the Rings",
-        "author": "J.R.R. Tolkien",
-        "genre": "Fantasy",
-        "year": 1954,
-        "ISBN": "978-0618640157"
-    },
-    {
-        "title": "The Hobbit",
-        "author": "J.R.R. Tolkien",
-        "genre": "Fantasy",
-        "year": 1937,
-        "ISBN": "978-0547928227"
-    },
-    {
-        "title": "Brave New World",
-        "author": "Aldous Huxley",
-        "genre": "Dystopian",
-        "year": 1932,
-        "ISBN": "978-0060850524"
-    },
-    {
-        "title": "War and Peace",
-        "author": "Leo Tolstoy",
-        "genre": "Historical Fiction",
-        "year": 1869,
-        "ISBN": "978-0199232765"
-    }
-]
+# Book Model
+class Book(BaseModel):
+    title: str
+    author: str
+    genre: str
+    year: Optional[int] = None
+    ISBN: Optional[int] = None
+    book_id: Optional[str] = None
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        if not self.book_id:
+            self.book_id = uuid4().hex
+
+
+BOOKS_FILE = 'books.json'
+
+# Load existing books from file if available
+def load_books():
+    if os.path.exists(BOOKS_FILE):
+        with open(BOOKS_FILE, 'r') as f:
+            return json.load(f)
+    return []
+
+BOOK_DATABASE = load_books()
+
+# Save books to file
+def save_books():
+    with open(BOOKS_FILE, 'w') as f:
+        json.dump(BOOK_DATABASE, f, indent=4)
 
 # Home endpoint - displays a welcome message
 @app.get("/")
 async def home():
-    return {"Message": "Welcome To My BookStore!"}
+    return {"Message": "Welcome to My BookStore!"}
 
-# Endpoint to list all books in the database
+# List all books
 @app.get("/list-books")
 async def list_books():
     return {"Books": BOOK_DATABASE}
 
-# Endpoint to get a book by its index in the list
+# Get a book by its index
 @app.get("/book-by-index/{index}")
 async def book_by_index(index: int):
-    # Check if the index is within the range of the list
-    if index < 0 or index >= len(BOOK_DATABASE):
-        # If not, raise a 404 error with a custom message
-        raise HTTPException(status_code=404, detail="Book not found")
-    # If valid, return the book at the specified index
+    if not (0 <= index < len(BOOK_DATABASE)):
+        raise HTTPException(status_code=404, detail=f"Index {index} is out of range.")
     return {"Book": BOOK_DATABASE[index]}
 
-# Endpoint to get books by the author's name
+# Get books by author
 @app.get("/book-by-author/{author}")
 async def book_by_author(author: str):
-    # Use list comprehension to find books with a matching author name (case-insensitive)
     books = [book for book in BOOK_DATABASE if book["author"].lower() == author.lower()]
-    # If no books are found, raise a 404 error
     if not books:
-        raise HTTPException(status_code=404, detail="Book not found")
-    # Return the list of books by the specified author
+        raise HTTPException(status_code=404, detail="No books found by this author.")
     return {"Books": books}
 
-# Endpoint to get books by genre
+# Get books by genre
 @app.get("/book-by-genre/{genre}")
 async def book_by_genre(genre: str):
-    # Use list comprehension to find books with a matching genre (case-insensitive)
     books = [book for book in BOOK_DATABASE if book["genre"].lower() == genre.lower()]
-    # If no books are found, raise a 404 error
     if not books:
-        raise HTTPException(status_code=404, detail="Book not found")
-    # Return the list of books in the specified genre
+        raise HTTPException(status_code=404, detail="No books found in this genre.")
     return {"Books": books}
 
-# Endpoint to get books by the year they were published
+# Get books by publication year
 @app.get("/book-by-year/{year}")
 async def book_by_year(year: int):
-    # Use list comprehension to find books published in the specified year
     books = [book for book in BOOK_DATABASE if book["year"] == year]
-    # If no books are found, raise a 404 error
     if not books:
-        raise HTTPException(status_code=404, detail="Book not found")
-    # Return the list of books published in the specified year
+        raise HTTPException(status_code=404, detail="No books found from this year.")
     return {"Books": books}
 
-# Endpoint to get books by their ISBN number
+# Get books by ISBN
 @app.get("/book-by-isbn/{isbn}")
-async def book_by_isbn(isbn: str):
-    # Use list comprehension to find books with a matching ISBN
+async def book_by_isbn(isbn: int):
     books = [book for book in BOOK_DATABASE if book["ISBN"] == isbn]
-    # If no books are found, raise a 404 error
     if not books:
-        raise HTTPException(status_code=404, detail="Book not found")
-    # Return the book with the specified ISBN
+        raise HTTPException(status_code=404, detail="No books found with this ISBN.")
     return {"Books": books}
 
-# Endpoint to get books by their title
+# Get books by title
 @app.get("/book-by-title/{title}")
 async def book_by_title(title: str):
-    # Use list comprehension to find books with a matching title (case-insensitive)
     books = [book for book in BOOK_DATABASE if book["title"].lower() == title.lower()]
-    # If no books are found, raise a 404 error
     if not books:
-        raise HTTPException(status_code=404, detail="Book not found")
-    # Return the book(s) with the specified title
+        raise HTTPException(status_code=404, detail="No books found with this title.")
     return {"Books": books}
 
+# Get a random book
 @app.get("/get-random-book")
 async def get_random_book():
+    if not BOOK_DATABASE:
+        raise HTTPException(status_code=404, detail="No books available.")
     return random.choice(BOOK_DATABASE)
 
+# Add a new book
+@app.post("/add-book")
+async def add_book(book: Book):
+    json_book = jsonable_encoder(book)
+    BOOK_DATABASE.append(json_book)
+    save_books()
+    return {"Message": f"Book '{book.title}' was successfully added.", "book_id": book.book_id}
 
-# /add-book
-
-# /get-book?{} id =...
+# Get a book by its ID
+@app.get("/get-book")
+async def get_book(book_id: str):
+    for book in BOOK_DATABASE:
+        if book["book_id"] == book_id:
+            return book
+    raise HTTPException(status_code=404, detail=f"Book with ID {book_id} not found.")
